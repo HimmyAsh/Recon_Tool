@@ -1,0 +1,177 @@
+import argparse
+import socket
+import requests
+import whois as python_whois
+import dns.resolver
+import json
+import threading
+from queue import Queue
+from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QPushButton, QLabel, QTextEdit, QWidget, QLineEdit
+
+# Function to perform WHOIS lookup
+def get_whois_info(domain):
+    try:
+        w = python_whois.whois(domain)
+        return str(w)
+    except Exception as e:
+        return f"WHOIS Error: {e}"
+
+# Function to retrieve DNS records
+def dns_lookup(domain):
+    try:
+        resolver = dns.resolver.Resolver()
+        records = resolver.resolve(domain, 'A')
+        return [str(record) for record in records]
+    except Exception as e:
+        return [f"DNS Error: {e}"]
+
+# Function to scan ports
+def port_scan(target, ports, results):
+    for port in ports:
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(1)
+                if s.connect_ex((target, port)) == 0:
+                    results.append(f"Port {port} is open!")
+        except Exception as e:
+            results.append(f"Error on port {port}: {e}")
+
+# Multithreaded port scanning
+def threaded_port_scan(target, ports):
+    results = []
+    threads = []
+    for port in ports:
+        thread = threading.Thread(target=port_scan, args=(target, [port], results))
+        threads.append(thread)
+        thread.start()
+
+    for thread in threads:
+        thread.join()
+
+    return results
+
+# Save results to a JSON file
+def save_results_to_json(data, filename):
+    try:
+        with open(filename, 'w') as file:
+            json.dump(data, file, indent=4)
+    except Exception as e:
+        print(f"Error saving to file: {e}")
+
+# GUI using PyQt5
+class ReconToolGUI(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.initUI()
+
+    def initUI(self):
+        self.setWindowTitle("Automated Recon Tool")
+        
+        layout = QVBoxLayout()
+
+        self.domain_label = QLabel("Enter Domain:")
+        self.domain_input = QTextEdit()
+        self.domain_input.setFixedHeight(30)
+
+        self.port_label = QLabel("Enter Ports (comma-delimited, e.g., 80,443,8080):")
+        self.port_input = QLineEdit()
+
+        self.result_display = QTextEdit()
+        self.result_display.setReadOnly(True)
+
+        self.run_button = QPushButton("Run Recon")
+        self.run_button.clicked.connect(self.run_recon)
+
+        layout.addWidget(self.domain_label)
+        layout.addWidget(self.domain_input)
+        layout.addWidget(self.port_label)
+        layout.addWidget(self.port_input)
+        layout.addWidget(self.run_button)
+        layout.addWidget(self.result_display)
+
+        container = QWidget()
+        container.setLayout(layout)
+        self.setCentralWidget(container)
+
+    def run_recon(self):
+        domain = self.domain_input.toPlainText().strip()
+        ports_input = self.port_input.text().strip()
+
+        if not domain:
+            self.result_display.setText("Please enter a domain.")
+            return
+
+        try:
+            ports = [int(port.strip()) for port in ports_input.split(",") if port.strip().isdigit()]
+        except ValueError:
+            self.result_display.setText("Invalid port format. Please enter numbers separated by commas.")
+            return
+
+        if not ports:
+            self.result_display.setText("Please enter at least one valid port.")
+            return
+
+        self.result_display.setText("Running reconnaissance...\n")
+        
+        results = {}
+
+        # Run WHOIS lookup
+        whois_data = get_whois_info(domain)
+        results['WHOIS'] = whois_data
+        self.result_display.append("\n[WHOIS]\n" + whois_data)
+
+        # Run DNS lookup
+        dns_data = dns_lookup(domain)
+        results['DNS'] = dns_data
+        self.result_display.append("\n[DNS Records]\n" + "\n".join(dns_data))
+
+        # Run Port Scan
+        port_data = threaded_port_scan(domain, ports)
+        results['Ports'] = port_data
+        self.result_display.append("\n[Port Scan]\n" + "\n".join(port_data))
+
+        # Save to JSON
+        save_results_to_json(results, "recon_results.json")
+        self.result_display.append("\nResults saved to recon_results.json")
+
+# Main function to run CLI or GUI
+def main():
+    parser = argparse.ArgumentParser(description="Automated Recon Tool with GUI")
+    parser.add_argument("--cli", action="store_true", help="Run the tool in CLI mode")
+    parser.add_argument("--domain", type=str, help="Target domain for reconnaissance")
+    parser.add_argument("--ports", nargs='+', type=int, help="Ports to scan (e.g., 80 443 8080)")
+
+    args = parser.parse_args()
+
+    if args.cli:
+        if not args.domain:
+            print("Please provide a domain with --domain in CLI mode.")
+            return
+
+        domain = args.domain
+        ports = args.ports if args.ports else [80, 443]
+
+        results = {}
+
+        print("[*] Running WHOIS...")
+        results['WHOIS'] = get_whois_info(domain)
+        print(results['WHOIS'])
+
+        print("[*] Running DNS Lookup...")
+        results['DNS'] = dns_lookup(domain)
+        print("\n".join(results['DNS']))
+
+        print("[*] Running Port Scan...")
+        results['Ports'] = threaded_port_scan(domain, ports)
+        print("\n".join(results['Ports']))
+
+        save_results_to_json(results, "recon_results.json")
+        print("Results saved to recon_results.json")
+    else:
+        app = QApplication([])
+        window = ReconToolGUI()
+        window.show()
+        app.exec_()
+
+if __name__ == "__main__":
+    main()
