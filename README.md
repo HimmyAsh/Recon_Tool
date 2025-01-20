@@ -9,11 +9,7 @@ Clone the repository:
 git clone <repository_url>
 cd automated-recon-tool
 
-Install the required dependencies:
-
-pip install -r requirements.txt
-
-Dependencies:
+**Dependencies**:
 
 PyQt5
 
@@ -23,9 +19,9 @@ dnspython
 
 requests
 
-Usage
+**Usage**
 
-GUI Mode
+**GUI Mode**
 
 Run the script:
 
@@ -39,7 +35,7 @@ Click Run Recon to perform the tasks.
 
 View results in the GUI or in the recon_results.json file.
 
-CLI Mode
+**CLI Mode**
 
 Use the --cli flag to run the tool in CLI mode:
 
@@ -68,14 +64,10 @@ Port Scan:
 Port 80 is open!
 Port 443 is open!
 
-Contributions
+**Contributions**
 
 Contributions to this project are welcome! Feel free to fork the repository and submit a pull request with your enhancements.
 
-License
-
-This project is licensed under the MIT License. See the LICENSE file for details.
-
-Disclaimer
+**Disclaimer**
 
 This tool is for educational and ethical purposes only. Use responsibly and ensure you have proper authorization when running reconnaissance tasks on any target.
